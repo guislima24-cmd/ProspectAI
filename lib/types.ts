@@ -17,12 +17,25 @@ export type Metodologia = "CLÁSSICA" | "AIDA";
 export type Tom = "Profissional" | "Direto" | "Consultivo" | "Provocador";
 export type StatusGeracao = "idle" | "generating" | "done" | "error";
 
+export interface VariavelCustom {
+  chave: string;
+  valor: string;
+}
+
+export interface VariaveisEJ {
+  nomeEJ: string;      // Nome da empresa júnior
+  pitchEJ: string;     // Breve descrição / pitch da EJ
+  cases: string;       // Exemplos de resultados / cases
+  custom: VariavelCustom[];  // Variáveis extras livres
+}
+
 export interface Config {
   apiKey: string;
   canal: Canal;
   metodologia: Metodologia;
   tom: Tom;
   limiteCaracteres: number;
+  variaveis: VariaveisEJ;
 }
 
 export interface LeadWithMessage extends Lead {

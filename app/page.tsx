@@ -6,7 +6,15 @@ import CSVUpload from "@/components/CSVUpload";
 import ConfigPanel from "@/components/ConfigPanel";
 import LeadTable from "@/components/LeadTable";
 import MessageCard from "@/components/MessageCard";
-import { Config, Lead, LeadWithMessage } from "@/lib/types";
+import PromptPreview from "@/components/PromptPreview";
+import { Config, Lead, LeadWithMessage, VariaveisEJ } from "@/lib/types";
+
+const DEFAULT_VARIAVEIS: VariaveisEJ = {
+  nomeEJ: "UFABC Júnior",
+  pitchEJ: "",
+  cases: "",
+  custom: [],
+};
 
 const DEFAULT_CONFIG: Config = {
   apiKey: "",
@@ -14,9 +22,10 @@ const DEFAULT_CONFIG: Config = {
   metodologia: "CLÁSSICA",
   tom: "Consultivo",
   limiteCaracteres: 700,
+  variaveis: DEFAULT_VARIAVEIS,
 };
 
-const RATE_LIMIT_DELAY = 1200; // ms between API calls
+const RATE_LIMIT_DELAY = 1200;
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -34,20 +43,14 @@ export default function Home() {
     setResults([]);
   }
 
-  async function generateForLead(
-    lead: Lead,
-    mensagemAnterior?: string
-  ): Promise<string> {
+  async function generateForLead(lead: Lead, mensagemAnterior?: string): Promise<string> {
     const res = await fetch("/api/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ lead, config, mensagemAnterior }),
     });
-
     const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.error ?? "Erro ao gerar mensagem");
-    }
+    if (!res.ok) throw new Error(data.error ?? "Erro ao gerar mensagem");
     return data.message as string;
   }
 
@@ -64,7 +67,6 @@ export default function Home() {
     setIsGenerating(true);
     setProgress({ done: 0, total: leads.length });
 
-    // Initialize all as idle
     const initial: LeadWithMessage[] = leads.map((lead) => ({
       ...lead,
       message: null,
@@ -75,28 +77,21 @@ export default function Home() {
     for (let i = 0; i < leads.length; i++) {
       const lead = leads[i];
 
-      // Mark as generating
       setResults((prev) =>
-        prev.map((r) =>
-          r.id === lead.id ? { ...r, status: "generating" } : r
-        )
+        prev.map((r) => (r.id === lead.id ? { ...r, status: "generating" } : r))
       );
 
       try {
         if (i > 0) await sleep(RATE_LIMIT_DELAY);
         const message = await generateForLead(lead);
         setResults((prev) =>
-          prev.map((r) =>
-            r.id === lead.id ? { ...r, message, status: "done" } : r
-          )
+          prev.map((r) => (r.id === lead.id ? { ...r, message, status: "done" } : r))
         );
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : "Erro desconhecido";
         setResults((prev) =>
           prev.map((r) =>
-            r.id === lead.id
-              ? { ...r, status: "error", error: errorMsg }
-              : r
+            r.id === lead.id ? { ...r, status: "error", error: errorMsg } : r
           )
         );
       }
@@ -110,28 +105,18 @@ export default function Home() {
   const handleRegenerate = useCallback(
     async (leadWithMsg: LeadWithMessage) => {
       setResults((prev) =>
-        prev.map((r) =>
-          r.id === leadWithMsg.id ? { ...r, status: "generating" } : r
-        )
+        prev.map((r) => (r.id === leadWithMsg.id ? { ...r, status: "generating" } : r))
       );
-
       try {
-        const message = await generateForLead(
-          leadWithMsg,
-          leadWithMsg.message ?? undefined
-        );
+        const message = await generateForLead(leadWithMsg, leadWithMsg.message ?? undefined);
         setResults((prev) =>
-          prev.map((r) =>
-            r.id === leadWithMsg.id ? { ...r, message, status: "done" } : r
-          )
+          prev.map((r) => (r.id === leadWithMsg.id ? { ...r, message, status: "done" } : r))
         );
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : "Erro desconhecido";
         setResults((prev) =>
           prev.map((r) =>
-            r.id === leadWithMsg.id
-              ? { ...r, status: "error", error: errorMsg }
-              : r
+            r.id === leadWithMsg.id ? { ...r, status: "error", error: errorMsg } : r
           )
         );
       }
@@ -144,16 +129,7 @@ export default function Home() {
     const rows = results.filter((r) => r.status === "done" && r.message);
     if (rows.length === 0) return;
 
-    const headers = [
-      "Nome",
-      "Cargo",
-      "Empresa",
-      "Setor",
-      "Email",
-      "LinkedIn",
-      "Mensagem",
-    ];
-
+    const headers = ["Nome", "Cargo", "Empresa", "Setor", "Email", "LinkedIn", "Mensagem"];
     const csvContent = [
       headers.join(","),
       ...rows.map((r) =>
@@ -169,9 +145,7 @@ export default function Home() {
       ),
     ].join("\n");
 
-    const blob = new Blob(["\uFEFF" + csvContent], {
-      type: "text/csv;charset=utf-8;",
-    });
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -180,32 +154,29 @@ export default function Home() {
     URL.revokeObjectURL(url);
   }
 
-  const doneCount = results.filter((r) => r.status === "done").length;
-  const hasResults = results.length > 0;
-  const progressPercent =
-    progress.total > 0
-      ? Math.round((progress.done / progress.total) * 100)
-      : 0;
-
   function reset() {
     setLeads([]);
     setResults([]);
     setProgress({ done: 0, total: 0 });
   }
 
+  const doneCount = results.filter((r) => r.status === "done").length;
+  const hasResults = results.length > 0;
+  const progressPercent =
+    progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0;
+  const sampleLead = leads[0] ?? null;
+
   return (
     <div className="min-h-screen">
       {/* Header */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
               <Sparkles size={18} className="text-white" />
             </div>
             <div>
-              <h1 className="font-bold text-gray-900 leading-tight">
-                ProspectAI
-              </h1>
+              <h1 className="font-bold text-gray-900 leading-tight">ProspectAI</h1>
               <p className="text-xs text-gray-500">UFABC Júnior · Prospecção B2B</p>
             </div>
           </div>
@@ -227,18 +198,26 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 py-8">
-        {/* Setup Section */}
+      <main className="max-w-7xl mx-auto px-4 py-8">
+        {/* ── Setup ── */}
         {!hasResults && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-            <CSVUpload onLeadsLoaded={handleLeadsLoaded} />
-            <ConfigPanel config={config} onChange={setConfig} />
-          </div>
+          <>
+            {/* Row 1: CSV upload (full width) */}
+            <div className="mb-6">
+              <CSVUpload onLeadsLoaded={handleLeadsLoaded} />
+            </div>
+
+            {/* Row 2: Config (left) + Prompt Preview (right) */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+              <ConfigPanel config={config} onChange={setConfig} />
+              <PromptPreview config={config} sampleLead={sampleLead} />
+            </div>
+          </>
         )}
 
-        {/* Lead Preview */}
+        {/* Lead preview table */}
         {leads.length > 0 && !hasResults && (
-          <div className="mb-8">
+          <div className="mb-6">
             <LeadTable leads={leads} />
           </div>
         )}
@@ -261,9 +240,7 @@ export default function Home() {
         {isGenerating && (
           <div className="mb-6">
             <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
-              <span>
-                Gerando mensagens... {progress.done}/{progress.total}
-              </span>
+              <span>Gerando mensagens... {progress.done}/{progress.total}</span>
               <span>{progressPercent}%</span>
             </div>
             <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
@@ -278,16 +255,12 @@ export default function Home() {
         {/* Results */}
         {hasResults && (
           <>
-            {/* Config summary + controls */}
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h2 className="text-xl font-bold text-gray-900">
-                  Mensagens Geradas
-                </h2>
+                <h2 className="text-xl font-bold text-gray-900">Mensagens Geradas</h2>
                 <p className="text-sm text-gray-500 mt-0.5">
-                  {doneCount} de {results.length} concluídas ·{" "}
-                  {config.canal} · {config.metodologia} · {config.tom} ·{" "}
-                  {config.limiteCaracteres} chars
+                  {doneCount} de {results.length} concluídas · {config.canal} ·{" "}
+                  {config.metodologia} · {config.tom} · {config.limiteCaracteres} chars
                 </p>
               </div>
               <div className="flex items-center gap-3">
@@ -306,11 +279,7 @@ export default function Home() {
 
             <div className="space-y-4">
               {results.map((r) => (
-                <MessageCard
-                  key={r.id}
-                  leadWithMessage={r}
-                  onRegenerate={handleRegenerate}
-                />
+                <MessageCard key={r.id} leadWithMessage={r} onRegenerate={handleRegenerate} />
               ))}
             </div>
           </>
@@ -318,14 +287,10 @@ export default function Home() {
 
         {/* Empty state */}
         {leads.length === 0 && !hasResults && (
-          <div className="text-center py-16 text-gray-400">
+          <div className="text-center py-12 text-gray-400">
             <Sparkles size={48} className="mx-auto mb-4 opacity-30" />
-            <p className="text-lg font-medium text-gray-500">
-              Pronto para prospectar em escala
-            </p>
-            <p className="text-sm mt-1">
-              Importe seu CSV do Apollo.io e configure as opções acima.
-            </p>
+            <p className="text-lg font-medium text-gray-500">Pronto para prospectar em escala</p>
+            <p className="text-sm mt-1">Importe seu CSV do Apollo.io e configure as opções acima.</p>
           </div>
         )}
       </main>
